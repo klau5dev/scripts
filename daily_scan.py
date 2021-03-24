@@ -32,6 +32,8 @@ def subfinder(path):
         manual_result = f.readlines()
         manual_result = list(map(lambda s: s.strip(), manual_result))
 
+    rm_tmpfile(manual_temp)
+
     # If daily scan result exist, use this as seed data and scan
     try:
         with open(path + '/domain_daily') as f:
@@ -55,6 +57,8 @@ def subfinder(path):
 
         daily_result = merge_result(old_result, daily_result)
 
+        rm_tmpfile(daily_temp)
+
     except IOError:
         daily_result = None
 
@@ -66,9 +70,6 @@ def subfinder(path):
 
     with open(path + '/domain_daily', "w") as f:
         f.writelines("\n".join(result))
-
-    rm_tmpfile(manual_temp)
-    rm_tmpfile(daily_temp)
 
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
