@@ -6,6 +6,22 @@ import random
 WORKSPACE_PATH = os.environ['HOME'] + "/workspace/"
 TEMP_PATH = "/tmp/"
 
+class Command():
+    def __init__(self, module, input_path, output_path):
+        self.module = module
+        self.input_path = input_path
+        self.output_path = output_path
+    
+    def aslist(self):
+        return [
+            'axiom-scan',
+            self.input_path,
+            '-m',
+            self.module,
+            '-o',
+            self.output_path
+        ]
+
 def merge_result(result1, result2):
     if type(result1) != type(result2):
         raise Exception
@@ -15,17 +31,12 @@ def merge_result(result1, result2):
     return result
 
 def subfinder(path):
-    command_format = "axiom-scan {input_path}/{input_name} -m subfinder -o {temp_path}"
 
     manual_temp = make_tempfile_name()
 
-    command = command_format.format(
-                input_path = path,
-                input_name = "domain_manual",
-                temp_path = manual_temp,
-            )
+    command = Command('subfinder', path + "/domain_manual", manual_temp)
 
-    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
     with open(manual_temp, 'r') as f:
@@ -42,13 +53,9 @@ def subfinder(path):
 
         daily_temp = make_tempfile_name()
 
-        command = command_format.format(
-                    input_path = path,
-                    input_name = "domain_daily",
-                    temp_path = daily_temp,
-                )
+        command = Command('subfinder', path + "/domain_daily", daily_temp)
 
-        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+        process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
         output, error = process.communicate()
 
         with open(daily_temp, 'r') as f:
