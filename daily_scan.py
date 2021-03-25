@@ -78,6 +78,12 @@ def subfinder(path):
     with open(path + '/domain_daily', "w") as f:
         f.writelines("\n".join(result))
 
+def httpx(path):
+    command = Command('httpx', path + "/domain_daily", path + "/http_daily")
+
+    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
 
@@ -96,6 +102,7 @@ if __name__ == '__main__':
             continue
 
         subfinder(path)
+        httpx(path)
 
         break
 
