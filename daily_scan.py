@@ -7,11 +7,15 @@ WORKSPACE_PATH = os.environ['HOME'] + "/workspace/"
 TEMP_PATH = "/tmp/"
 
 class Command():
-    def __init__(self, module, input_path, output_path):
+    def __init__(self, module, input_path, output_path, options=None):
         self.module = module
         self.input_path = input_path
         self.output_path = output_path
-    
+
+        if options == None:
+            options = []
+        self.options = options
+
     def aslist(self):
         return [
             'axiom-scan',
@@ -20,7 +24,7 @@ class Command():
             self.module,
             '-o',
             self.output_path
-        ]
+        ] + self.options
 
 def merge_result(result1, result2):
     if type(result1) != type(result2):
