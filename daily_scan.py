@@ -88,6 +88,11 @@ def httpx(path):
     process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
+def subtakeover(path):
+    command = Command('nuclei', path + "/http_daily", path + "/subtakeover_daily", ['-w', '/home/op/nuclei-templates/takeovers'])
+    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
 
@@ -107,6 +112,7 @@ if __name__ == '__main__':
 
         subfinder(path)
         httpx(path)
+        subtakeover(path)
 
         break
 
