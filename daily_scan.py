@@ -93,6 +93,11 @@ def subtakeover(path):
     process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
+def gospider(path):
+    command = Command('gospider', path + "/http_daily", path + "/gospider_daily")
+    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
 
@@ -113,6 +118,7 @@ if __name__ == '__main__':
         subfinder(path)
         httpx(path)
         subtakeover(path)
+        gospider(path)
 
-        break
+        # break
 
