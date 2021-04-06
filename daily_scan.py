@@ -98,6 +98,55 @@ def gospider(path):
     process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
+def s3takeover(path):
+    # get filenames
+    try:
+        spider_res_files = os.listdir(path + "/gospider_daily")
+    except:
+        return
+
+    result_path = path + "/s3takeover_daily/"
+    if not os.path.isdir(result_path):
+        os.mkdir(result_path)
+
+    for filename in spider_res_files:
+        filepath = path + "/gospider_daily/" + filename
+
+        # get javascript 
+        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(["grep", "\[aws-s3\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+        p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+        aws_links, error = p3.communicate()
+        p3.wait()
+        
+        aws_links = list(map(lambda s: s.strip(), aws_links.decode('utf-8').splitlines()))
+
+        # handling url started with '//'
+        for index, link in enumerate(aws_links):
+            if link.startswith("//"):
+                aws_links[index] = link[2:]
+
+        with tempfile.NamedTemporaryFile(dir=TEMP_PATH, mode="w") as tf:
+            if not aws_links:
+                continue
+
+            tf.write("\n".join(aws_links))
+            tf.flush()
+
+            # check http first
+            httpx_res_temp = make_tempfile_name()
+            command = Command('httpx', tf.name, httpx_res_temp)
+            process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+            _, _ = process.communicate()
+
+            command = Command('nuclei', httpx_res_temp, result_path + filename, ['-w', '/home/op/nuclei-templates/takeovers/aws-bucket-takeover.yaml'])
+            process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+            output, error = process.communicate()
+            # print(output.decode('utf-8'))
+
+            rm_tmpfile(httpx_res_temp)
+
 def exposed_token(path):
     # get filenames
     try:
@@ -158,6 +207,7 @@ if __name__ == '__main__':
         httpx(path)
         subtakeover(path)
         gospider(path)
+        s3takeover(path)
         exposed_token(path)
 
         # break
