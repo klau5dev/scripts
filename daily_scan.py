@@ -1,6 +1,6 @@
 import os
 import subprocess
-# import tempfile
+import tempfile
 import random
 
 WORKSPACE_PATH = os.environ['HOME'] + "/workspace/"
@@ -98,6 +98,45 @@ def gospider(path):
     process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 
+def exposed_token(path):
+    # get filenames
+    try:
+        spider_res_files = os.listdir(path + "/gospider_daily")
+    except:
+        return
+
+    result_path = path + "/exposed_token_daily/"
+    if not os.path.isdir(result_path):
+        os.mkdir(result_path)
+
+    for filename in spider_res_files: 
+        filepath = path + "/gospider_daily/" + filename
+
+        # get javascript 
+        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(["grep", "\[javascript\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+        p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+        js_links, error = p3.communicate()
+        p3.wait()
+
+        # get live links
+        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(["grep", "\[url\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+        p3 = subprocess.Popen(["awk", "{ print $5 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+        live_links, error = p3.communicate()
+        p3.wait()
+
+        with tempfile.NamedTemporaryFile(dir=TEMP_PATH) as tf:
+            tf.write(live_links)
+            tf.write(js_links)
+            tf.flush()
+
+            command = Command('nuclei', tf.name, result_path + filename, ['-w', '/home/op/nuclei-templates/exposed-tokens'])
+            process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+            output, error = process.communicate()
+
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
 
@@ -119,6 +158,7 @@ if __name__ == '__main__':
         httpx(path)
         subtakeover(path)
         gospider(path)
+        exposed_token(path)
 
         # break
 
