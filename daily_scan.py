@@ -2,9 +2,14 @@ import os
 import subprocess
 import tempfile
 import random
+import argparse
+import json
 
 WORKSPACE_PATH = os.environ['HOME'] + "/workspace/"
 TEMP_PATH = "/tmp/"
+
+DAILY_DONE = './daily_done'
+DAILY_NOSCAN = './daily_noscan'
 
 class Command():
     def __init__(self, module, input_path, output_path, options=None):
@@ -195,20 +200,75 @@ def rm_tmpfile(path):
     except OSError:
         print("No tempfile at " + path)
 
-if __name__ == '__main__':
-    dirs = os.listdir(WORKSPACE_PATH)
+def scan(path, modules):
+    if "subfinder" in modules:
+        subfinder(path)
+    if "httpx" in modules:
+        httpx(path)
+    if "gospider" in modules:
+        gospider(path)
+    if "subtakeover" in modules:
+        subtakeover(path)
+    if "s3takeover" in modules:
+        s3takeover(path)
+    if "exposed_token" in modules:
+        exposed_token(path)
 
-    for target in dirs:
+if __name__ == '__main__':
+
+    module_list = ['subfinder', 'httpx', 'gospider', 'subtakeover', 's3takeover', 'exposed_token']
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+
+    target_group = parser.add_mutually_exclusive_group(required=True)
+    target_group.add_argument('-t', '--target', help='Select one target')
+    target_group.add_argument('-c', '--cont', action='store_true', help='Continue daily scan')
+
+    module_group = parser.add_mutually_exclusive_group(required=True)
+    module_group.add_argument('-m', '--modules', nargs='+', help='Select modules to use', choices=module_list)
+    module_group.add_argument('-a', '--all', action='store_true', help='Use all modules')
+
+    args = parser.parse_args()
+
+    targets = []
+    done = []
+    noscan = []
+
+    if args.target:
+        targets = [args.target]
+    elif args.cont:
+        try:
+            with open(DAILY_DONE, 'r') as f:
+                done = f.readlines()
+                done = list(map(lambda s: s.strip(), done))
+        except:
+            pass
+
+        targets = os.listdir(WORKSPACE_PATH)
+        targets = list(set(targets) - set(done))
+
+        try:
+            with open(DAILY_NOSCAN, 'r') as f:
+                noscan = f.readlines()
+                noscan = list(map(lambda s: s.strip(), noscan))
+        except:
+            pass
+
+        targets = list(set(targets) - set(noscan))
+
+    if args.modules:
+        modules = args.modules
+    elif args.all:
+        modules = module_list
+
+
+    for target in targets:
         path = WORKSPACE_PATH + target
         if not os.path.isdir(path):
             continue
 
-        subfinder(path)
-        httpx(path)
-        subtakeover(path)
-        gospider(path)
-        s3takeover(path)
-        exposed_token(path)
+        scan(path, modules)
 
-        # break
-
+        if args.all:
+            with open('daily_done', 'a') as f:
+                f.write('\n' + target)
