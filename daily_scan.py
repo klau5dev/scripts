@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 import random
 import argparse
-import json
+import types
 
 WORKSPACE_PATH = os.environ['HOME'] + "/workspace/"
 TEMP_PATH = "/tmp/"
@@ -39,157 +39,161 @@ def merge_result(result1, result2):
         result = sorted(list(set(result1 + result2)))
     return result
 
-def subfinder(path):
+class Modules():
+    
+    def subfinder(self, path):
 
-    manual_temp = make_tempfile_name()
+        manual_temp = make_tempfile_name()
 
-    command = Command('subfinder', path + "/domain_manual", manual_temp)
-
-    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-
-    with open(manual_temp, 'r') as f:
-        manual_result = f.readlines()
-        manual_result = list(map(lambda s: s.strip(), manual_result))
-
-    rm_tmpfile(manual_temp)
-
-    # If daily scan result exist, use this as seed data and scan
-    try:
-        with open(path + '/domain_daily') as f:
-            old_result = f.readlines()
-            old_result = list(map(lambda s: s.strip(), old_result))
-
-        daily_temp = make_tempfile_name()
-
-        command = Command('subfinder', path + "/domain_daily", daily_temp)
+        command = Command('subfinder', path + "/domain_manual", manual_temp)
 
         process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
         output, error = process.communicate()
 
-        with open(daily_temp, 'r') as f:
-            daily_result = f.readlines()
-            daily_result = list(map(lambda s: s.strip(), daily_result))
+        with open(manual_temp, 'r') as f:
+            manual_result = f.readlines()
+            manual_result = list(map(lambda s: s.strip(), manual_result))
 
-        daily_result = merge_result(old_result, daily_result)
+        rm_tmpfile(manual_temp)
 
-        rm_tmpfile(daily_temp)
+        # If daily scan result exist, use this as seed data and scan
+        try:
+            with open(path + '/domain_daily') as f:
+                old_result = f.readlines()
+                old_result = list(map(lambda s: s.strip(), old_result))
 
-    except IOError:
-        daily_result = None
+            daily_temp = make_tempfile_name()
 
-    # merge result
-    if daily_result != None:
-        result = merge_result(manual_result, daily_result)
-    else:
-        result = manual_result
+            command = Command('subfinder', path + "/domain_daily", daily_temp)
 
-    with open(path + '/domain_daily', "w") as f:
-        f.writelines("\n".join(result))
-
-def httpx(path):
-    command = Command('httpx', path + "/domain_daily", path + "/http_daily")
-
-    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-
-def subtakeover(path):
-    command = Command('nuclei', path + "/http_daily", path + "/subtakeover_daily", ['-w', '/home/op/nuclei-templates/takeovers'])
-    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-
-def gospider(path):
-    command = Command('gospider', path + "/http_daily", path + "/gospider_daily")
-    process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-
-def s3takeover(path):
-    # get filenames
-    try:
-        spider_res_files = os.listdir(path + "/gospider_daily")
-    except:
-        return
-
-    result_path = path + "/s3takeover_daily/"
-    if not os.path.isdir(result_path):
-        os.mkdir(result_path)
-
-    for filename in spider_res_files:
-        filepath = path + "/gospider_daily/" + filename
-
-        # get javascript 
-        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(["grep", "\[aws-s3\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
-        p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
-
-        aws_links, error = p3.communicate()
-        p3.wait()
-        
-        aws_links = list(map(lambda s: s.strip(), aws_links.decode('utf-8').splitlines()))
-
-        # handling url started with '//'
-        for index, link in enumerate(aws_links):
-            if link.startswith("//"):
-                aws_links[index] = link[2:]
-
-        with tempfile.NamedTemporaryFile(dir=TEMP_PATH, mode="w") as tf:
-            if not aws_links:
-                continue
-
-            tf.write("\n".join(aws_links))
-            tf.flush()
-
-            # check http first
-            httpx_res_temp = make_tempfile_name()
-            command = Command('httpx', tf.name, httpx_res_temp)
-            process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-            _, _ = process.communicate()
-
-            command = Command('nuclei', httpx_res_temp, result_path + filename, ['-w', '/home/op/nuclei-templates/takeovers/aws-bucket-takeover.yaml'])
             process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
             output, error = process.communicate()
-            # print(output.decode('utf-8'))
 
-            rm_tmpfile(httpx_res_temp)
+            with open(daily_temp, 'r') as f:
+                daily_result = f.readlines()
+                daily_result = list(map(lambda s: s.strip(), daily_result))
 
-def exposed_token(path):
-    # get filenames
-    try:
-        spider_res_files = os.listdir(path + "/gospider_daily")
-    except:
-        return
+            daily_result = merge_result(old_result, daily_result)
 
-    result_path = path + "/exposed_token_daily/"
-    if not os.path.isdir(result_path):
-        os.mkdir(result_path)
+            rm_tmpfile(daily_temp)
 
-    for filename in spider_res_files: 
-        filepath = path + "/gospider_daily/" + filename
+        except IOError:
+            daily_result = None
 
-        # get javascript 
-        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(["grep", "\[javascript\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
-        p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+        # merge result
+        if daily_result != None:
+            result = merge_result(manual_result, daily_result)
+        else:
+            result = manual_result
 
-        js_links, error = p3.communicate()
-        p3.wait()
+        with open(path + '/domain_daily', "w") as f:
+            f.writelines("\n".join(result))
 
-        # get live links
-        p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(["grep", "\[url\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
-        p3 = subprocess.Popen(["awk", "{ print $5 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+    def httpx(self, path):
+        command = Command('httpx', path + "/domain_daily", path + "/http_daily")
 
-        live_links, error = p3.communicate()
-        p3.wait()
+        process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
 
-        with tempfile.NamedTemporaryFile(dir=TEMP_PATH) as tf:
-            tf.write(live_links)
-            tf.write(js_links)
-            tf.flush()
+    def subtakeover(self, path):
+        command = Command('nuclei', path + "/http_daily", path + "/subtakeover_daily", ['-w', '/home/op/nuclei-templates/takeovers'])
+        process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
 
-            command = Command('nuclei', tf.name, result_path + filename, ['-w', '/home/op/nuclei-templates/exposed-tokens'])
-            process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
-            output, error = process.communicate()
+    def gospider(self, path):
+        command = Command('gospider', path + "/http_daily", path + "/gospider_daily")
+        process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+
+        # extract subdomain -> save it at total domain (not domain_daily)
+
+    def s3takeover(self, path):
+        # get filenames
+        try:
+            spider_res_files = os.listdir(path + "/gospider_daily")
+        except:
+            return
+
+        result_path = path + "/s3takeover_daily/"
+        if not os.path.isdir(result_path):
+            os.mkdir(result_path)
+
+        for filename in spider_res_files:
+            filepath = path + "/gospider_daily/" + filename
+
+            # get aws-s3 url
+            p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["grep", "\[aws-s3\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+            aws_links, error = p3.communicate()
+            p3.wait()
+
+            aws_links = list(map(lambda s: s.strip(), aws_links.decode('utf-8').splitlines()))
+
+            # handling url started with '//'
+            for index, link in enumerate(aws_links):
+                if link.startswith("//"):
+                    aws_links[index] = link[2:]
+
+            with tempfile.NamedTemporaryFile(dir=TEMP_PATH, mode="w") as tf:
+                if not aws_links:
+                    continue
+
+                tf.write("\n".join(aws_links))
+                tf.flush()
+
+                # check http first
+                httpx_res_temp = make_tempfile_name()
+                command = Command('httpx', tf.name, httpx_res_temp)
+                process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+                _, _ = process.communicate()
+
+                command = Command('nuclei', httpx_res_temp, result_path + filename, ['-w', '/home/op/nuclei-templates/takeovers/aws-bucket-takeover.yaml'])
+                process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+                output, error = process.communicate()
+                # print(output.decode('utf-8'))
+
+                rm_tmpfile(httpx_res_temp)
+
+    def exposed_token(self, path):
+        # get filenames
+        try:
+            spider_res_files = os.listdir(path + "/gospider_daily")
+        except:
+            return
+
+        result_path = path + "/exposed_token_daily/"
+        if not os.path.isdir(result_path):
+            os.mkdir(result_path)
+
+        for filename in spider_res_files:
+            filepath = path + "/gospider_daily/" + filename
+
+            # get javascript
+            p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["grep", "\[javascript\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+            js_links, error = p3.communicate()
+            p3.wait()
+
+            # get live links
+            p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["grep", "\[url\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p3 = subprocess.Popen(["awk", "{ print $5 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+            live_links, error = p3.communicate()
+            p3.wait()
+
+            with tempfile.NamedTemporaryFile(dir=TEMP_PATH) as tf:
+                tf.write(live_links)
+                tf.write(js_links)
+                tf.flush()
+
+                command = Command('nuclei', tf.name, result_path + filename, ['-w', '/home/op/nuclei-templates/exposed-tokens'])
+                process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+                output, error = process.communicate()
 
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
@@ -201,22 +205,37 @@ def rm_tmpfile(path):
         print("No tempfile at " + path)
 
 def scan(path, modules):
+    # scan_object = Modules()
+    # for module in modules:
+    #     method = getattr(scan_object, module)
+    #     method(path)
+
+    # Call manually To keep module order
+    scan_object = Modules()
     if "subfinder" in modules:
-        subfinder(path)
+        scan_object.subfinder(path)
     if "httpx" in modules:
-        httpx(path)
+        scan_object.httpx(path)
     if "gospider" in modules:
-        gospider(path)
+        scan_object.gospider(path)
     if "subtakeover" in modules:
-        subtakeover(path)
+        scan_object.subtakeover(path)
     if "s3takeover" in modules:
-        s3takeover(path)
+        scan_object.s3takeover(path)
     if "exposed_token" in modules:
+        scan_object.exposed_token(path)
+
+def get_module_names():
+    result = []
+    for attr, val in Modules.__dict__.items():
+        if type(val) == types.FunctionType:
+            result.append(attr)
+    return result
+
         exposed_token(path)
 
 if __name__ == '__main__':
-
-    module_list = ['subfinder', 'httpx', 'gospider', 'subtakeover', 's3takeover', 'exposed_token']
+    module_list = get_module_names()
 
     parser = argparse.ArgumentParser(description='Process some integers.')
 
@@ -269,6 +288,6 @@ if __name__ == '__main__':
 
         scan(path, modules)
 
-        if args.all:
+        if args.cont:
             with open('daily_done', 'a') as f:
-                f.write('\n' + target)
+                f.write(target + '\n')
