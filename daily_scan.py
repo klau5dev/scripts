@@ -232,8 +232,6 @@ def get_module_names():
             result.append(attr)
     return result
 
-        exposed_token(path)
-
 if __name__ == '__main__':
     module_list = get_module_names()
 
