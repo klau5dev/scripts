@@ -195,6 +195,73 @@ class Modules():
                 process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
                 output, error = process.communicate()
 
+    def s3scanner(self, path):
+        print(path)
+
+        # get AWS URL, no 'https://'
+        # get filenames
+        try:
+            spider_res_files = os.listdir(path + "/gospider_daily")
+        except:
+            return
+
+        result_path = path + "/s3scanner_daily/"
+        if not os.path.isdir(result_path):
+            os.mkdir(result_path)
+
+        for filename in spider_res_files:
+            filepath = path + "/gospider_daily/" + filename
+
+            # get aws-s3 url
+            p1 = subprocess.Popen(["cat", filepath], stdout=subprocess.PIPE)
+            p2 = subprocess.Popen(["grep", "\[aws-s3\]"], stdin=p1.stdout, stdout=subprocess.PIPE)
+            p3 = subprocess.Popen(["awk", "{ print $3 }"], stdin=p2.stdout, stdout=subprocess.PIPE)
+
+            aws_links, error = p3.communicate()
+            p3.wait()
+
+            aws_links = list(map(lambda s: s.strip(), aws_links.decode('utf-8').splitlines()))
+
+            # handling url started with '//'
+            for index, link in enumerate(aws_links):
+                if link.startswith("//"):
+                    aws_links[index] = link[2:]
+
+            with tempfile.NamedTemporaryFile(dir=TEMP_PATH, mode="w") as tf:
+                if not aws_links:
+                    continue
+
+                tf.write("\n".join(aws_links))
+                tf.flush()
+
+                # check http first
+                httpx_res_temp = make_tempfile_name()
+                command = Command('httpx', tf.name, httpx_res_temp)
+                process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+                _, _ = process.communicate()
+
+            with open(httpx_res_temp, 'r') as f:
+                httpx_result = f.readlines()
+                httpx_result = list(map(lambda s: s.strip(), httpx_result))
+            
+            rm_tmpfile(httpx_res_temp)
+
+            aws_format_urls = []
+
+            for line in httpx_result:
+                line = line.strip()
+                line = line.replace('http://', '')
+                line = line.replace('https://', '')
+                aws_format_urls.append(line)
+
+            with tempfile.NamedTemporaryFile(dir=TEMP_PATH, mode="w") as tf:
+                tf.write("\n".join(aws_format_urls))
+                tf.flush()
+
+                command = Command('s3scanner', tf.name, result_path + filename, ['-t', 'simple'])
+                process = subprocess.Popen(command.aslist(), stdout=subprocess.PIPE)
+                output, error = process.communicate()
+
 def make_tempfile_name():
     return TEMP_PATH + "axiom_tmp" + str(random.randint(0, 100000000))
 
@@ -224,6 +291,8 @@ def scan(path, modules):
         scan_object.s3takeover(path)
     if "exposed_token" in modules:
         scan_object.exposed_token(path)
+    if "s3scanner" in modules:
+        scan_object.s3scanner(path)
 
 def get_module_names():
     result = []
